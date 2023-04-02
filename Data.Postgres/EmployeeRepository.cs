@@ -31,7 +31,7 @@ namespace Data.Postgres
 
                     var insertEmployeeSql = 
                         $"INSERT INTO employees (name, surname, phone, company_id, passport_id, department_id) " +
-                        $"VALUES ('{employee.Name}', '{employee.Surname}', '{employee.Phone}', '{employee.CompanyId}', '{passportId}', '{employee.DepartmentId}') " +
+                        $"VALUES ('{employee.Name}', '{employee.Surname}', '{employee.Phone}', {employee.CompanyId}, {passportId}, {employee.DepartmentId}) " +
                         $"RETURNING id";
 
                     employeeId = connection.Query<int>(insertEmployeeSql, transaction: transaction).FirstOrDefault();
@@ -45,7 +45,7 @@ namespace Data.Postgres
 
         public bool DeleteEmployeeById(int employeeId)
         {
-            var deleteSql = $"DELETE FROM employees WHERE id = '{employeeId}'";
+            var deleteSql = $"DELETE FROM employees WHERE id = {employeeId}";
             using (var connection = connectionFactory.Create())
             {
                 int res = connection.Execute(deleteSql);
@@ -61,7 +61,7 @@ namespace Data.Postgres
                 $"ON e.passport_id = p.id " +
                 $"JOIN departments d " +
                 $"ON e.department_id = d.id " +
-                $"WHERE id = '{employeeId}'";
+                $"WHERE e.id = {employeeId}";
 
             using (var connection = connectionFactory.Create())
             {
@@ -70,7 +70,9 @@ namespace Data.Postgres
                     (employee, passport, department) =>
                     {
                         employee.Passport = passport;
+                        employee.PassportId = passport.Id;
                         employee.Department = department;
+                        employee.DepartmentId = department.Id;
                         return employee;
                     }).FirstOrDefault();
 
@@ -96,7 +98,7 @@ namespace Data.Postgres
                 $"ON e.passport_id = p.id " +
                 $"JOIN departments d " +
                 $"ON e.department_id = d.id " +
-                $"WHERE e.company_id = '{companyId}'";
+                $"WHERE e.company_id = {companyId}";
 
             var dictDepartment = new Dictionary<int, Department>();
 
@@ -107,13 +109,16 @@ namespace Data.Postgres
                     (employee, passport, department) =>
                     {
                         employee.Passport = passport;
+                        employee.PassportId = passport.Id;
 
                         if (!dictDepartment.ContainsKey(department.Id))
                         {
                             dictDepartment.Add(department.Id, department);
                         }
 
-                        employee.Department = dictDepartment[department.Id];
+                        var dep = dictDepartment[department.Id];
+                        employee.Department = dep;
+                        employee.DepartmentId = dep.Id;
                         return employee;
                     });
 
@@ -129,7 +134,7 @@ namespace Data.Postgres
                 $"ON e.passport_id = p.id " +
                 $"JOIN departments d " +
                 $"ON e.department_id = d.id " +
-                $"WHERE e.company_id = '{companyId}' AND d.name = '{departmentName}'";
+                $"WHERE e.company_id = {companyId} AND d.name = '{departmentName}'";
 
             var dictDepartment = new Dictionary<int, Department>();
 
@@ -140,13 +145,16 @@ namespace Data.Postgres
                     (employee, passport, department) =>
                     {
                         employee.Passport = passport;
+                        employee.PassportId = passport.Id;
 
                         if (!dictDepartment.ContainsKey(department.Id))
                         {
                             dictDepartment.Add(department.Id, department);
                         }
 
-                        employee.Department = dictDepartment[department.Id];
+                        var dep = dictDepartment[department.Id];
+                        employee.Department = dep;
+                        employee.DepartmentId = dep.Id;
                         return employee;
                     });
 
@@ -163,39 +171,39 @@ namespace Data.Postgres
                 return;
             }
 
-            if (updatedEmployee.Name != default)
+            if (updatedEmployee.Name != null)
             {
                 existEmployee.Name = updatedEmployee.Name;
             }
 
-            if (updatedEmployee.Surname != default)
+            if (updatedEmployee.Surname != null)
             {
                 existEmployee.Surname = updatedEmployee.Surname;
             }
 
-            if (updatedEmployee.Phone != default)
+            if (updatedEmployee.Phone != null)
             {
                 existEmployee.Phone = updatedEmployee.Phone;
             }
 
-            if (updatedEmployee.CompanyId != default)
+            if (updatedEmployee.CompanyId > 0)
             {
                 existEmployee.CompanyId = updatedEmployee.CompanyId;
             }
 
-            if (updatedEmployee.DepartmentId != default)
+            if (updatedEmployee.DepartmentId > 0)
             {
                 existEmployee.DepartmentId = updatedEmployee.DepartmentId;
             }
 
-            if (updatedEmployee.Passport != default)
+            if (updatedEmployee.Passport != null)
             {
-                if (updatedEmployee.Passport.Type != default)
+                if (updatedEmployee.Passport.Type != null)
                 {
                     existEmployee.Passport.Type = updatedEmployee.Passport.Type;
                 }
 
-                if (updatedEmployee.Passport.Number != default)
+                if (updatedEmployee.Passport.Number != null)
                 {
                     existEmployee.Passport.Number = updatedEmployee.Passport.Number;
                 }
@@ -211,15 +219,15 @@ namespace Data.Postgres
                         $"name = '{existEmployee.Name}', " +
                         $"surname = '{existEmployee.Surname}', " +
                         $"phone = '{existEmployee.Phone}', " +
-                        $"company_id = '{existEmployee.CompanyId}', " +
-                        $"department_id = '{existEmployee.DepartmentId}' " +
-                        $"WHERE id = '{existEmployee.Id}'";
+                        $"company_id = {existEmployee.CompanyId}, " +
+                        $"department_id = {existEmployee.DepartmentId} " +
+                        $"WHERE id = {existEmployee.Id}";
 
                     var updatePassportSql =
                         $"UPDATE passports SET " +
                         $"type = '{existEmployee.Passport.Type}', " +
                         $"number = '{existEmployee.Passport.Number}' " +
-                        $"WHERE id = '{existEmployee.Passport.Id}'";
+                        $"WHERE id = {existEmployee.Passport.Id}";
 
                     connection.Execute(updateEmployeeSql, transaction: transaction);
                     connection.Execute(updatePassportSql, transaction: transaction);

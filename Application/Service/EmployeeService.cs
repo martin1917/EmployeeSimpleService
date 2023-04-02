@@ -1,10 +1,11 @@
 ﻿using Application.Exceptions;
+using Application.Service.Base;
 using Core.Model;
 using Core.Repository;
 
 namespace Application.Service
 {
-    public class EmployeeService
+    public class EmployeeService : IEmployeeService
     {
         private readonly IEmployeeRepository employeeRepository;
 
@@ -25,7 +26,7 @@ namespace Application.Service
             return employeeId;
         }
 
-        public bool DeleteEmployee(int employeeId)
+        public bool DeleteEmployeeById(int employeeId)
         {
             return employeeRepository.DeleteEmployeeById(employeeId);
         }
