@@ -1,6 +1,7 @@
 ﻿using Core.Model;
 using Core.Repository;
 using Dapper;
+using Npgsql;
 
 namespace Data.Postgres
 {
@@ -23,16 +24,16 @@ namespace Data.Postgres
                 using (var transaction = connection.BeginTransaction())
                 {
                     var insertPassportSql =
-                        $"INSERT INTO passports (type, number) " +
+                        $"INSERT INTO passports (Type, Number) " +
                         $"VALUES ('{employee.Passport.Type}', '{employee.Passport.Number}') " +
-                        $"RETURNING id";
+                        $"RETURNING Id";
 
                     int passportId = connection.Query<int>(insertPassportSql, transaction: transaction).FirstOrDefault();
 
                     var insertEmployeeSql = 
-                        $"INSERT INTO employees (name, surname, phone, company_id, passport_id, department_id) " +
+                        $"INSERT INTO employees (Name, Surname, Phone, CompanyId, PassportId, DepartmentId) " +
                         $"VALUES ('{employee.Name}', '{employee.Surname}', '{employee.Phone}', {employee.CompanyId}, {passportId}, {employee.DepartmentId}) " +
-                        $"RETURNING id";
+                        $"RETURNING Id";
 
                     employeeId = connection.Query<int>(insertEmployeeSql, transaction: transaction).FirstOrDefault();
 
@@ -45,11 +46,21 @@ namespace Data.Postgres
 
         public bool DeleteEmployeeById(int employeeId)
         {
-            var deleteSql = $"DELETE FROM employees WHERE id = {employeeId}";
+            var deleteSql = $"DELETE FROM employees WHERE Id = {employeeId}";
             using (var connection = connectionFactory.Create())
             {
                 int res = connection.Execute(deleteSql);
                 return res != 0;
+            }
+        }
+
+        public Passport? GetEmployeePassport(string type, string number)
+        {
+            var selectSql = $"SELECT * FROM passports WHERE Type = '{type}' AND Number = '{number}'";
+            using (var connection = connectionFactory.Create())
+            {
+                var passport = connection.Query<Passport>(selectSql).FirstOrDefault();
+                return passport;
             }
         }
 
@@ -58,35 +69,15 @@ namespace Data.Postgres
             var selectSql = 
                 $"SELECT * FROM employees e " +
                 $"JOIN passports p " +
-                $"ON e.passport_id = p.id " +
+                $"ON e.PassportId = p.Id " +
                 $"JOIN departments d " +
-                $"ON e.department_id = d.id " +
-                $"WHERE e.id = {employeeId}";
+                $"ON e.DepartmentId = d.Id " +
+                $"WHERE e.Id = {employeeId}";
 
             using (var connection = connectionFactory.Create())
             {
-                var employee = connection.Query<Employee, Passport, Department, Employee>(
-                    selectSql, 
-                    (employee, passport, department) =>
-                    {
-                        employee.Passport = passport;
-                        employee.PassportId = passport.Id;
-                        employee.Department = department;
-                        employee.DepartmentId = department.Id;
-                        return employee;
-                    }).FirstOrDefault();
-
-                return employee;
-            }
-        }
-
-        public Passport? GetEmployeePassport(string type, string number)
-        {
-            var selectSql = $"SELECT * FROM passports WHERE type = '{type}' AND number = '{number}'";
-            using (var connection = connectionFactory.Create())
-            {
-                var passport = connection.Query<Passport>(selectSql).FirstOrDefault();
-                return passport;
+                var employees = LoadEmployeesWithPassportAndDepartment(connection, selectSql);
+                return employees.FirstOrDefault();
             }
         }
 
@@ -95,33 +86,14 @@ namespace Data.Postgres
             var selectSql =
                 $"SELECT * FROM employees e " +
                 $"JOIN passports p " +
-                $"ON e.passport_id = p.id " +
+                $"ON e.PassportId = p.Id " +
                 $"JOIN departments d " +
-                $"ON e.department_id = d.id " +
-                $"WHERE e.company_id = {companyId}";
-
-            var dictDepartment = new Dictionary<int, Department>();
+                $"ON e.DepartmentId = d.Id " +
+                $"WHERE e.CompanyId = {companyId}";
 
             using (var connection = connectionFactory.Create())
             {
-                var employees = connection.Query<Employee, Passport, Department, Employee>(
-                    selectSql,
-                    (employee, passport, department) =>
-                    {
-                        employee.Passport = passport;
-                        employee.PassportId = passport.Id;
-
-                        if (!dictDepartment.ContainsKey(department.Id))
-                        {
-                            dictDepartment.Add(department.Id, department);
-                        }
-
-                        var dep = dictDepartment[department.Id];
-                        employee.Department = dep;
-                        employee.DepartmentId = dep.Id;
-                        return employee;
-                    });
-
+                var employees = LoadEmployeesWithPassportAndDepartment(connection, selectSql);
                 return employees;
             }
         }
@@ -131,35 +103,35 @@ namespace Data.Postgres
             var selectSql =
                 $"SELECT * FROM employees e " +
                 $"JOIN passports p " +
-                $"ON e.passport_id = p.id " +
+                $"ON e.PassportId = p.Id " +
                 $"JOIN departments d " +
-                $"ON e.department_id = d.id " +
-                $"WHERE e.company_id = {companyId} AND d.name = '{departmentName}'";
-
-            var dictDepartment = new Dictionary<int, Department>();
+                $"ON e.DepartmentId = d.Id " +
+                $"WHERE e.CompanyId = {companyId} AND d.Name = '{departmentName}'";
 
             using (var connection = connectionFactory.Create())
             {
-                var employees = connection.Query<Employee, Passport, Department, Employee>(
-                    selectSql,
-                    (employee, passport, department) =>
-                    {
-                        employee.Passport = passport;
-                        employee.PassportId = passport.Id;
-
-                        if (!dictDepartment.ContainsKey(department.Id))
-                        {
-                            dictDepartment.Add(department.Id, department);
-                        }
-
-                        var dep = dictDepartment[department.Id];
-                        employee.Department = dep;
-                        employee.DepartmentId = dep.Id;
-                        return employee;
-                    });
-
+                var employees = LoadEmployeesWithPassportAndDepartment(connection, selectSql);
                 return employees;
             }
+        }
+
+        private IEnumerable<Employee> LoadEmployeesWithPassportAndDepartment(NpgsqlConnection connection, string selectSql)
+        {
+            var dictDepartment = new Dictionary<int, Department>();
+            return connection.Query<Employee, Passport, Department, Employee>(
+                selectSql,
+                (employee, passport, department) =>
+                {
+                    employee.Passport = passport;
+
+                    if (!dictDepartment.ContainsKey(department.Id))
+                    {
+                        dictDepartment.Add(department.Id, department);
+                    }
+
+                    employee.Department = dictDepartment[department.Id];
+                    return employee;
+                });
         }
 
         public void UpdateEmployee(Employee updatedEmployee)
@@ -216,18 +188,18 @@ namespace Data.Postgres
                 {
                     var updateEmployeeSql = 
                         $"UPDATE employees SET " +
-                        $"name = '{existEmployee.Name}', " +
-                        $"surname = '{existEmployee.Surname}', " +
-                        $"phone = '{existEmployee.Phone}', " +
-                        $"company_id = {existEmployee.CompanyId}, " +
-                        $"department_id = {existEmployee.DepartmentId} " +
-                        $"WHERE id = {existEmployee.Id}";
+                        $"Name = '{existEmployee.Name}', " +
+                        $"Surname = '{existEmployee.Surname}', " +
+                        $"Phone = '{existEmployee.Phone}', " +
+                        $"CompanyId = {existEmployee.CompanyId}, " +
+                        $"DepartmentId = {existEmployee.DepartmentId} " +
+                        $"WHERE Id = {existEmployee.Id}";
 
                     var updatePassportSql =
                         $"UPDATE passports SET " +
-                        $"type = '{existEmployee.Passport.Type}', " +
-                        $"number = '{existEmployee.Passport.Number}' " +
-                        $"WHERE id = {existEmployee.Passport.Id}";
+                        $"Type = '{existEmployee.Passport.Type}', " +
+                        $"Number = '{existEmployee.Passport.Number}' " +
+                        $"WHERE Id = {existEmployee.Passport.Id}";
 
                     connection.Execute(updateEmployeeSql, transaction: transaction);
                     connection.Execute(updatePassportSql, transaction: transaction);
