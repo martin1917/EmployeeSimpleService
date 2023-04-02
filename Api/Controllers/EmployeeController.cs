@@ -44,7 +44,7 @@ namespace Api.Controllers
                 return BadRequest(new
                 {
                     code = 400,
-                    message = "passport already exist",
+                    message = "Такой паспорт уже существует",
                 });
             }
 
