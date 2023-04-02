@@ -17,16 +17,16 @@ namespace Data.Postgres
         {
             using (var connection = connectionFactory.Create())
             {
-                var insertPassportSql = 
-                    $"INSERT INTO passports (type, number) " +
-                    $"VALUES ('{employee.Passport.Type}', '{employee.Passport.Number}') " +
-                    $"RETURNING id";
+                connection.Open();
 
                 int employeeId = -1;
-
-                connection.Open();
                 using (var transaction = connection.BeginTransaction())
                 {
+                    var insertPassportSql =
+                        $"INSERT INTO passports (type, number) " +
+                        $"VALUES ('{employee.Passport.Type}', '{employee.Passport.Number}') " +
+                        $"RETURNING id";
+
                     int passportId = connection.Query<int>(insertPassportSql, transaction: transaction).FirstOrDefault();
 
                     var insertEmployeeSql = 
